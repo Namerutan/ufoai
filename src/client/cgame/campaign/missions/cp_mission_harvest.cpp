@@ -136,37 +136,26 @@ void CP_HarvestMissionGo (mission_t* mission)
 {
 	mission->stage = STAGE_MISSION_GOTO;
 
-	/* Check if some nations should be favoured, due to XVI */
-	linkedList_t* nationList = nullptr;
-	CP_ChooseNation(mission, &nationList);
-	
-	/* Set a list of suitable populations (exclude 'nopopulation') */
-	linkedList_t* populationList = nullptr;
-	cgi->LIST_AddString(populationList, "urban");
-	cgi->LIST_AddString(populationList, "suburban");
-	cgi->LIST_AddString(populationList, "village");
-	cgi->LIST_AddString(populationList, "rural");
-
-	/* Get random pos on geoscape */
-	int counter;
-	for (counter = 0; counter < MAX_POS_LOOP; counter++) {
-		if (!CP_GetRandomPosOnGeoscapeWithParameters(mission->pos, nullptr, nullptr, populationList, nationList))
-			continue;
-		if (GEO_PositionCloseToBase(mission->pos))
-			continue;
-		mission->posAssigned = true;
-		break;
-	}
-	cgi->LIST_Delete(&populationList);
-	cgi->LIST_Delete(&nationList);
-	if (counter >= MAX_POS_LOOP) {
-		Com_Printf("CP_HarvestMissionGo: Error, could not set position.\n");
-		CP_MissionRemove(mission);
-		return;
-	}
-
 	/* Choose a map */
-	if (!CP_ChooseMap(mission, mission->pos)) {
+	if (CP_ChooseMap(mission, nullptr)) {
+		int counter;
+		linkedList_t* nationList = nullptr;
+		const bool nationTest = CP_ChooseNation(mission, &nationList);
+		for (counter = 0; counter < MAX_POS_LOOP; counter++) {
+			if (!CP_GetRandomPosOnGeoscapeWithParameters(mission->pos, mission->mapDef->terrains, mission->mapDef->cultures, mission->mapDef->populations, nationTest ? nationList : nullptr))
+				continue;
+			if (GEO_PositionCloseToBase(mission->pos))
+				continue;
+			mission->posAssigned = true;
+			break;
+		}
+		if (counter >= MAX_POS_LOOP) {
+			Com_Printf("CP_HarvestMissionGo: Error, could not set position.\n");
+			CP_MissionRemove(mission);
+			return;
+		}
+		cgi->LIST_Delete(&nationList);
+	} else {
 		Com_Printf("CP_HarvestMissionGo: No map found, remove mission.\n");
 		CP_MissionRemove(mission);
 		return;
